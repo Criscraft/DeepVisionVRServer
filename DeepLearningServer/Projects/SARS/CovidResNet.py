@@ -2,6 +2,7 @@ from collections import OrderedDict
 import torch
 from torch import Tensor
 import torch.nn as nn
+import torch.nn.functional as F 
 from torch.utils.model_zoo import load_url as load_state_dict_from_url
 from typing import Type, Any, Callable, Union, List, Optional
 from ActivationTracker import ActivationTracker, TrackerModule
@@ -350,7 +351,9 @@ class ResNet(nn.Module):
         self.marker = TrackerModule((TRACKERINDEX, 0), "Flatten to 1D vector", precursors=[(TRACKERINDEX-1, 0)], ignore_activation=True)
         self.classifier = nn.Linear(512 * block.expansion, num_classes)
         TRACKERINDEX += 1
-        self.tracker5 = TrackerModule((TRACKERINDEX, 0), "Output", precursors=[(TRACKERINDEX-1, 0)])
+        self.tracker5 = TrackerModule((TRACKERINDEX, 0), "Class Scores", precursors=[(TRACKERINDEX-1, 0)])
+        TRACKERINDEX += 1
+        self.tracker6 = TrackerModule((TRACKERINDEX, 0), "Posterior Probabilities", precursors=[(TRACKERINDEX-1, 0)])
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -424,6 +427,7 @@ class ResNet(nn.Module):
         x = self.marker(x)
         x = self.classifier(x)
         x = self.tracker5(x)
+        self.tracker6(F.softmax(x, 1))
 
         return x
 

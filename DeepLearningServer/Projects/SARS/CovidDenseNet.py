@@ -324,7 +324,9 @@ class DenseNetTorchVision(nn.Module):
         self.marker = TrackerModule((TRACKERINDEX, 0), "Flatten to 1D vector", precursors=[(TRACKERINDEX-1, 0)], ignore_activation=True)
         self.classifier = nn.Linear(num_features, num_classes)
         TRACKERINDEX += 1
-        self.tracker5 = TrackerModule((TRACKERINDEX, 0), "output", precursors=[(TRACKERINDEX-1, 0)])
+        self.tracker5 = TrackerModule((TRACKERINDEX, 0), "Class Scores", precursors=[(TRACKERINDEX-1, 0)])
+        TRACKERINDEX += 1
+        self.tracker6 = TrackerModule((TRACKERINDEX, 0), "Posterior Probabilities", precursors=[(TRACKERINDEX-1, 0)])
 
         # Official init from torch repo.
         for m in self.modules():
@@ -345,6 +347,7 @@ class DenseNetTorchVision(nn.Module):
         out = self.tracker4(out)
         out = self.classifier(out)
         out = self.tracker5(out)
+        self.tracker6(F.softmax(x, 1))
         return out
 
 
