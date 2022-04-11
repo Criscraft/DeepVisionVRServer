@@ -4,7 +4,23 @@ from contextlib import contextmanager
 from collections import defaultdict
 
 class TrackerModule(nn.Identity):
-
+    """
+    Record activations of a specific layer that should be displayed by DeepVisionVR.
+    
+    Parameters
+    ----------
+    pos : 
+        A pair of integers indicating the position on a 2D grid. The position [0, 0] represents the start node and is usually the input layer. [1, 0] will most likely be the first convolutional layer. [5, 1] denotes that the layer is located at a depth of 5 and that there is a branching in the computational graph. For example, [5,0] might already be taken and [5,1] is the skip connection of a Residual module. The pos will be used by DeepVisionVR to place the layers in the correct order.
+    layer_name : str
+        Some name to describe the network layer. DeepVisionVR will display these names.
+    tracked_module : nn.Module
+        If applicable, the pytorch module this layer gets the output from. DeepVisionVR will analyze the weights of this layer.  
+    precursors : list of pairs of two integers
+        A list of pos (see first argument) of previous layers, this layer is connected to. The precursors will be connected to this layer in DeepVisionVR. 
+    ignore_activation : bool
+        Wether this layer should record activations. If not, DeepVisionVR will show the layer_name, but not show any feature maps. Useful to mark the beginning of a new block.
+    """
+    
     def __init__(self, pos, layer_name, tracked_module=None, precursors=[], ignore_activation=False):
         super().__init__()
         self.meta = {'pos' : pos, 'layer_name' : layer_name, 'tracked_module' : tracked_module, 'precursors' : precursors, 'ignore_activation' : ignore_activation}
