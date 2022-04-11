@@ -40,7 +40,9 @@ class NetworkResource:
 class NetworkArchitectureResource:
 
     def on_get(self, req, resp, networkid):
-        out = networks[networkid].get_architecture()
+        network = networks[networkid]
+        out = network.get_architecture()
+        out['class_names'] = list(datasets[network.corresponding_dataset_id].class_names)
         out["networkid"] = networkid
         resp.text = json.dumps(out, indent=1, ensure_ascii=False)
         print("send NetworkArchitectureResource for network {networkid}")
@@ -78,7 +80,8 @@ class NetworkFeatureVisualizationResource:
     def on_get(self, req, resp, networkid : int, layerid : int):
         network = networks[networkid]
         data = network.get_feature_visualization(layerid)
-        data = data[:,np.array([2, 1, 0])] # for sorting color channels
+        if data.shape[1] == 3:
+            data = data[:,np.array([2, 1, 0])] # for sorting color channels
         data = data.transpose([0, 2, 3, 1]) # put channel dimension to last
         tensors = [utils.encode_image(ten) for ten in data]
         out = {
@@ -120,7 +123,7 @@ class NetworkPrepareForInputResource:
         elif activation_image.mode == ActivationImage.Mode.Activation:
             raise falcon.HTTPBadRequest(title="You cannot load an activation")
         else:
-            image = torch.zeros(dataset.get_data_item(0, True)[0].shape)
+            image = torch.zeros(datasets[network.corresponding_dataset_id].get_data_item(0, True)[0].shape)
         activation_image.data = image
 
         network.prepare_for_input(activation_image)
@@ -133,15 +136,26 @@ class NetworkClassificationResultResource:
         network = networks[networkid]
         dataset = datasets[network.active_data_item.dataset_ID]
         class_names = dataset.class_names
+        if not isinstance(class_names, np.ndarray):
+            class_names = np.array(class_names) 
         posteriors, class_indices = network.get_classification_result()
-        out = {
-            "networkid" : networkid,
-            "class_names" : list(class_names[class_indices]), 
-            "confidence_values" : [f"{item:.2f}" for item in posteriors],
+        if posteriors is not None:
+            out = {
+                "networkid" : networkid,
+                "class_names" : list(class_names[class_indices]), 
+                "confidence_values" : [f"{item:.2f}" for item in posteriors],
 
-        }
+            }
+        else:
+            out = {
+                "networkid" : networkid,
+                "class_names" : [], 
+                "confidence_values" : [],
+            }
         resp.text = json.dumps(out, indent=1, ensure_ascii=False)
         print(f"send NetworkClassificationResultResource for network {networkid}")
+        
+
 
 
 class NetworkWeightHistogramResource:
@@ -195,7 +209,7 @@ class DataImagesResource:
         out['tensors'] = tensors
         out['label_ids'] = labels
         out["class_names"] = list(dataset.class_names)
-        resp.text = json.dumps(out, indent=1, ensure_ascii=False)
+        resp.text = json.dumps(out, indent=1, ensure_ascii=True)
         print("send DataImagesResource for dataset {datasetid}")
 
 

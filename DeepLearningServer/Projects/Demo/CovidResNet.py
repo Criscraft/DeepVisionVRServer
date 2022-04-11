@@ -351,9 +351,9 @@ class ResNet(nn.Module):
         self.marker = TrackerModule((TRACKERINDEX, 0), "Flatten to 1D vector", precursors=[(TRACKERINDEX-1, 0)], ignore_activation=True)
         self.classifier = nn.Linear(512 * block.expansion, num_classes)
         TRACKERINDEX += 1
-        self.tracker5 = TrackerModule((TRACKERINDEX, 0), "Class Scores", precursors=[(TRACKERINDEX-1, 0)])
+        self.tracker5 = TrackerModule((TRACKERINDEX, 0), "Class Scores (display_classnames)", precursors=[(TRACKERINDEX-1, 0)])
         TRACKERINDEX += 1
-        self.tracker6 = TrackerModule((TRACKERINDEX, 0), "Posterior Probabilities", precursors=[(TRACKERINDEX-1, 0)])
+        self.tracker6 = TrackerModule((TRACKERINDEX, 0), "Posterior Probabilities (display_classnames)", precursors=[(TRACKERINDEX-1, 0)])
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

@@ -12,7 +12,7 @@ class NoiseGenerator:
     def generate_noise_image(self):
         if self.grayscale:
             self.active_noise_image = torch.randn((1, self.shape[0], self.shape[1]), device=self.device)
-            self.active_noise_image = self.active_noise_image.repeat(3, 1, 1)
+            #self.active_noise_image = self.active_noise_image.repeat(3, 1, 1)
         else:
             self.active_noise_image = torch.randn((3, self.shape[0], self.shape[1]), device=self.device)
 

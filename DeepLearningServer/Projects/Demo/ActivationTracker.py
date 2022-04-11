@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from contextlib import contextmanager
 from collections import defaultdict
@@ -24,7 +25,7 @@ class ActivationTracker():
     def register_forward_hook(self, module, name):
 
         def store_data(module, in_data, out_data):
-            layer = LayerInfo(name, in_data)
+            layer = LayerInfo(name, None, out_data)
             self._layer_info_dict[module].append(layer)
 
         return module.register_forward_hook(store_data)
@@ -79,10 +80,10 @@ class ActivationTracker():
         for module, info_list in self._layer_info_dict.items():
             #one info_list can have multiple entries, for example if one relu module is applied several times in a network
             for info_item in info_list:
-                item_dict = module.meta
+                item_dict = module.meta if hasattr(module, "meta") else {}
                 item_dict['module'] = module
-                if not item_dict['ignore_activation']:
-                    item_dict['activation'] = info_item.in_data[0]
+                if not (hasattr(item_dict, "ignore_activation") and item_dict['ignore_activation']):
+                    item_dict['activation'] = info_item.out_data #04.03.2022: changed from in_data[0] to out_data
                 activations.append(item_dict)
         return output, activations
 

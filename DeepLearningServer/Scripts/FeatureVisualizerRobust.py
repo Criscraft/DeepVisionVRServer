@@ -9,38 +9,34 @@ import numpy as np
 import random
 
 
-BATCHSIZE = 64
+BATCHSIZE = 32
 imagecount = 0
 
 
 class FeatureVisualizer(object):
     
     def __init__(self,
-        max_factor = 1,
         export = False,
         export_path = '',
         export_interval=50,
-        target_size = (150, 175), 
-        norm_mean = [0.5487017, 0.5312975, 0.50504637],
-        norm_std = [0.1878664, 0.18194826, 0.19830684],
+        target_size = (150, 175),
         epochs = 200,
-        lr=0.15,
+        lr=20.,
         distribution_reg_blend=0.05,
         scale = 0.05,
         degrees = 10, 
         blur_sigma = 0.5,
         roll = 5,
-        epochs_without_robustness = 5):
+        epochs_without_robustness = 10):
         
         super().__init__()
         self.lr = lr
-        self.max_factor = max_factor
         self.export = export
         self.export_interval = export_interval
         self.export_path = export_path
         self.epochs = epochs
-        self.regularize_transformation = Regularizer(norm_mean, distribution_reg_blend, target_size, scale, degrees, blur_sigma, roll)
-        self.export_transformation = ExportTransform(target_mean=norm_mean, target_std=norm_std)
+        self.regularize_transformation = Regularizer(distribution_reg_blend, target_size, scale, degrees, blur_sigma, roll)
+        self.export_transformation = ExportTransform()
         self.epochs_without_robustness = epochs_without_robustness
 
 
@@ -49,16 +45,15 @@ class FeatureVisualizer(object):
         export_meta = []
         if channels is None:
             channels = np.arange(n_channels)
-
+        
         init_image = init_image.to(device)
-
-        if torch.all(init_image[0] == init_image[1]) and torch.all(init_image[0] == init_image[2]):
-            grayscale = True
-        else:
-            grayscale = False
+        if init_image.ndim==3:
+            init_image = init_image.unsqueeze(0)
         
         n_batches = int( np.ceil( n_channels / float(BATCHSIZE) ) )
         
+        print("start gradient ascent on images")
+
         created_image_aggregate = []
         for batchid in range(n_batches):
             channels_batch = channels[batchid * BATCHSIZE : (batchid + 1) * BATCHSIZE]
@@ -80,7 +75,7 @@ class FeatureVisualizer(object):
                 output = out_dict['activations'][0]['activation']
                 loss_max = -torch.stack([output[i, j].mean() for i, j in enumerate(channels_batch)]).sum()
 
-                loss = self.max_factor * loss_max
+                loss = loss_max
                 if torch.isnan(loss):
                     print("loss is none, reset image")
                     created_image = init_image.repeat(n_batch_items, 1, 1, 1).detach()
@@ -88,19 +83,17 @@ class FeatureVisualizer(object):
 
                 loss.backward()
 
-                gradients = created_image.grad / (torch.sqrt((created_image.grad**2).mean()) + 1e-6)
+                gradients = created_image.grad / (torch.sqrt((created_image.grad**2).sum((1,2,3), keepdims=True)) + 1e-6)
                 created_image = created_image - gradients * self.lr
-                if grayscale:
-                    created_image = created_image.mean(1, keepdims=True)
-                    created_image = created_image.expand(-1, 3, -1, -1)
 
-
-                if epoch % 10 == 0:
+                if epoch % 20 == 0:
                     print(epoch, loss_max.item())
 
                 if self.export and (epoch % self.export_interval == 0 or epoch == self.epochs - 1):
                     with torch.no_grad():
                         export_images = self.export_transformation(created_image.detach().cpu())
+                        if export_images.shape[1] != 3:
+                            export_images = export_images.expand(-1, 3, -1, -1)
                         for i, channel in enumerate(channels_batch):
                             path = os.path.join(self.export_path, "_".join([str(channel), str(epoch), str(imagecount) + ".jpg"]))
                             export_meta.append({'path' : path, 'channel' : int(channel), 'epoch' : epoch})
@@ -115,24 +108,24 @@ class FeatureVisualizer(object):
 
 
 class ExportTransform(object):
-    def __init__(self, target_mean, target_std=None):
-        self.target_mean = np.array(target_mean).reshape((1,3,1,1))
-        self.target_std = np.array(target_std).reshape((1,3,1,1))
 
     def __call__(self, x):
         if isinstance(x, torch.Tensor):
             x = x.cpu().numpy()
 
-        x = x * self.target_std
-        x = x + self.target_mean
-        x = x.clip(0., 1.) * 255.9
+        minimum = x.min((1,2,3), keepdims=True)
+        maximum = x.max((1,2,3), keepdims=True)
+        x = x - minimum
+        x = x / (maximum - minimum)
+        x = x * 255
         x = x.astype(np.uint8)
+
         return x
 
 
 class Regularizer(object):
 
-    def __init__(self, norm_mean, distribution_reg_blend, target_size, scale, degrees, blur_sigma, roll):
+    def __init__(self, distribution_reg_blend, target_size, scale, degrees, blur_sigma, roll):
         if scale > 0.:
             scale = (1., 1. + scale)
         else:

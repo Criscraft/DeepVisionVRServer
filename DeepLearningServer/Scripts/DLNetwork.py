@@ -17,17 +17,20 @@ class FeatureVisualizationMode(Enum):
 
 class DLNetwork(object):
     
-    def __init__(self, model, device, norm_mean, norm_std, input_size, network_id):
+    def __init__(self, model, device, classification, input_size, network_id, corresponding_dataset_id=0, softmax=True):
         super().__init__()
         
         self.device = device
         self.network_id = network_id
+        self.corresponding_dataset_id = corresponding_dataset_id
+        self.classification = classification
+        self.softmax = softmax
         self.model = model.to(self.device)
         for param in self.model.parameters():
             param.requires_grad = False
         self.model.eval()
 
-        self.feature_visualizer = FeatureVisualizer(norm_mean=norm_mean, norm_std=norm_std, target_size=input_size)
+        self.feature_visualizer = FeatureVisualizer(target_size=input_size)
         self.features = None
         self.active_data_item = ActivationImage()
         self.active_noise_image = None
@@ -69,7 +72,7 @@ class DLNetwork(object):
         if self.features is None:
             raise ValueError("You have to prepare the input first")
         layerdict_list = [{key:value[key] for key in ('pos', 'layer_name', 'data_type', 'size', 'precursors')} for value in self.features]
-        return { 'architecture' : layerdict_list }
+        return {'architecture' : layerdict_list}
 
 
     def get_activation(self, layer_id):
@@ -122,8 +125,11 @@ class DLNetwork(object):
 
 
     def get_classification_result(self):
+        if not self.classification:
+            return None, None
         out = self.get_activation(len(self.features) - 1)
-        out = F.softmax(out, 1) * 100
+        if self.softmax:
+            out = F.softmax(out, 1) * 100
         out = out[0].cpu().numpy()
         indices_tmp = np.argsort(-out)
         indices_tmp = indices_tmp[:10]
