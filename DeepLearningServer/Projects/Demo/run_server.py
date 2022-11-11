@@ -1,4 +1,5 @@
 import torch
+import os
 import numpy as np
 from CovidResNet import CovidResNet
 from TransformTestRGB import TransformTestRGB
@@ -12,7 +13,7 @@ from Scripts.NoiseGenerator import NoiseGenerator
 N_IMAGES = 16
 N_CLASSES = 101
 SEED = 42
-DATAPATH = '/DeepLearningServer/Datasets/Caltech101'
+DATAPATH = os.path.join('..', '..', 'Datasets', 'Caltech101')
 IMAGE_SHAPE = (150, 175)
 NORM_MEAN = [0.5487017, 0.5312975, 0.50504637]
 NORM_STD = [0.1878664, 0.18194826, 0.19830684]
@@ -25,14 +26,13 @@ def get_dl_networks():
 
     network_list = []
     
-    
     model = CovidResNet(
         variant='resnet018',
         n_classes=N_CLASSES, 
         pretrained=False,
         blocks=[2,1,1,1],
         statedict='covidresnet_augmentation.pt')
-    dl_network = DLNetwork(model, device, True, IMAGE_SHAPE, 0)
+    dl_network = DLNetwork(model, device, True, IMAGE_SHAPE, 0, softmax=False)
     for param in model.embedded_model.parameters():
         param.requires_grad = False
     network_list.append(dl_network)
